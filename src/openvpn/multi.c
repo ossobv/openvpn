@@ -3236,8 +3236,21 @@ multi_process_float(struct multi_context *m, struct multi_instance *mi,
         struct tls_multi *m1 = mi->context.c2.tls_multi;
         struct tls_multi *m2 = ex_mi->context.c2.tls_multi;
 
+        /* if the new connection is fresh and the old one is already connected, this
+         * might be a legitimate move to a new IP by the original client;
+         * for example when the server IP is pushed as net_gateway to escape from
+         * a double VPN. */
+        if (m1->multi_state == CAS_CONNECT_DONE
+            && m2->multi_state == CAS_NOT_CONNECTED
+            && m1->locked_cert_hash_set
+            && !m2->locked_cert_hash_set
+            && session_id_equal(&m1->session[TM_ACTIVE].session_id,
+                          &m2->session[TM_ACTIVE].session_id))
+        {
+            /* allow this case */
+        }
         /* do not float if target address is taken by client with another cert */
-        if (!cert_hash_compare(m1->locked_cert_hash_set, m2->locked_cert_hash_set))
+        else if (!cert_hash_compare(m1->locked_cert_hash_set, m2->locked_cert_hash_set))
         {
             msg(D_MULTI_LOW, "Disallow float to an address taken by another client %s",
                 multi_instance_string(ex_mi, false, &gc));
